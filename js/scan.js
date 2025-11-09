@@ -1,7 +1,7 @@
 /**
  * scan.js
  * Logika Scanner dengan ZXing dan integrasi Poin Firebase
- * FIX: Memastikan poin HANYA diberikan jika kode ditemukan di productDatabase DAN isProduct: true.
+ * Final Logic: Stop kamera setelah sukses scan, dan validasi ketat untuk poin.
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -41,7 +41,7 @@ const productDatabase = {
     info: '<strong>Status:</strong> Perintah "Buka Profil" diterima.',
     warning: '✅ PERINTAH DIJALANKAN',
     suggestion: '<strong>Info:</strong> Anda akan diarahkan ke halaman profil pengguna...',
-    isProduct: false // TIDAK BOLEH DAPAT POIN
+    isProduct: false
   }
 };
 
@@ -51,6 +51,7 @@ const stopBtn = document.getElementById('stop-scan-btn');
 const barcodeResultEl = document.getElementById('barcode-result');
 const productInfoEl = document.getElementById('product-info');
 const scanAlertsEl = document.getElementById('scan-alerts');
+const videoElement = document.getElementById('video-scanner'); // Ambil elemen video
 
 // --- Auth state ---
 let currentUser = null;
@@ -111,17 +112,20 @@ function displayProductInfo(item, codeText) {
   `;
 
   // 3. Logika Poin
-  // KETAT: Poin hanya diberikan jika isProduct adalah TRUE
   if (item.isProduct === true) {
     addPoinForScan(); 
   } else {
-    // Pesan jika terdaftar tapi BUKAN produk (misal QR Aksi Aplikasi)
     showScanAlert('Aksi Aplikasi Dikenali', 'Kode ini adalah perintah, bukan produk. Poin tidak diberikan.', 'warning');
   }
 }
 
 // --- Logika bila hasil didapat (onScanSuccess) ---
 function onScanSuccess(result) {
+  
+  // ▼▼▼ ACTION 2: TUTUP KAMERA FOKUS PADA HASIL ▼▼▼
+  stopScanner(); 
+  // ▲▲▲ AKHIR ACTION 2 ▲▲▲
+
   const codeText = result.getText();
   const item = productDatabase[codeText];
 
@@ -129,26 +133,24 @@ function onScanSuccess(result) {
     // KODE DITEMUKAN di database
     displayProductInfo(item, codeText);
   } else {
-    // KODE TIDAK DITEMUKAN di database lokal
+    // KODE TIDAK DITEMUKAN di database lokal (ACTION 1)
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
     productInfoEl.innerHTML = `
-        <p style="text-align:center; margin-top:6px;">
-            Kode **${codeText}** tidak terdaftar di database GiziPoin.
-            <br>
-            **Poin TIDAK diberikan.**
+        <p class="text-danger" style="text-align:center; margin-top:10px; font-weight:700;">
+            **BARCODE TIDAK TERDAFTAR DI DATABASE**
+        </p>
+        <p style="text-align:center; font-style:italic;">
+            Kode (${codeText}) tidak cocok dengan produk yang terdaftar. Poin TIDAK diberikan.
         </p>`;
-    // PENTING: Poin TIDAK diberikan di sini.
   }
-
-  // Hentikan scanner agar hasil tetap terlihat
-  stopScanner(); 
 }
 
-// --- Kontrol scanner (dengan perbaikan error handling) ---
+// --- Kontrol scanner ---
 function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
   scanAlertsEl.innerHTML = '';
+  videoElement.style.display = 'block'; // Tampilkan elemen video saat mulai
 
   codeReader.getVideoInputDevices()
     .then((videoInputDevices) => {
@@ -190,12 +192,18 @@ function stopScanner() {
       codeReader.reset();
     } catch(e){ /* abaikan error reset */ }
   }
+  // Sembunyikan elemen video setelah di-reset
+  videoElement.style.display = 'none'; 
   barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
-  productInfoEl.innerHTML = '';
+  // JANGAN bersihkan productInfoEl di sini, karena ini dipanggil SETELAH sukses scan
 }
 
 // --- Event listeners ---
 window.addEventListener('load', () => {
   startBtn.addEventListener('click', startScanner);
   stopBtn.addEventListener('click', stopScanner);
+  
+  // Sembunyikan kamera secara default saat halaman dimuat
+  stopScanner(); 
+  barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
 });

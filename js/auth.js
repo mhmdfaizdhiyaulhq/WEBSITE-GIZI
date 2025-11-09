@@ -1,9 +1,8 @@
 // Import "alat" yang sesungguhnya dari firebase.js
-// Kita tambahkan 'setDoc' untuk menyimpan data
 import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc } from './firebase.js';
 
 // Ambil elemen-elemen dari halaman
-const dashboardLoading = document.getElementById('dashboard-loading'); // <-- BARU
+const dashboardLoading = document.getElementById('dashboard-loading');
 const dashboardTamu = document.getElementById('dashboard-tamu');
 const dashboardMember = document.getElementById('dashboard-member');
 const navLoginLogout = document.getElementById('nav-login-logout'); 
@@ -31,18 +30,10 @@ onAuthStateChanged(auth, async (user) => {
       userTerakhirKlaim = userDoc.data().terakhirKlaim || 0;
       userPoinDisplay.innerHTML = userPoin;
     } else {
-      // ▼▼▼ PERBAIKAN PENTING: INISIALISASI DOKUMEN JIKA TIDAK ADA ▼▼▼
-      console.log("Tidak ada data pengguna. Membuat dan menginisialisasi dokumen baru...");
-       
+      console.log("Tidak ada data poin untuk pengguna ini. Membuat data baru...");
       // Inisialisasi data di Firestore jika tidak ada
-      await setDoc(userDocRef, { 
-        poin: 0, 
-        terakhirKlaim: 0, 
-        barcodeKlaimTerakhir: [] // Field PENTING untuk fitur anti-spam barcode
-      }, { merge: true });
-      
+      await setDoc(userDocRef, { poin: 0, terakhirKlaim: 0 }, { merge: true });
       userPoinDisplay.innerHTML = 0;
-      // ▲▲▲ AKHIR PERBAIKAN PENTING ▼▼▼
     }
 
     // 2. Ubah link "Login" di Navbar menjadi "Logout"
@@ -65,7 +56,7 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
     
-    // 3. LOGIKA UNTUK KLAIM HARIAN (TIDAK BERUBAH)
+    // 3. LOGIKA UNTUK KLAIM HARIAN
     const SEKARANG = Date.now();
     const DUA_PULUH_EMPAT_JAM = 24 * 60 * 60 * 1000;
     const sisaWaktu = (userTerakhirKlaim + DUA_PULUH_EMPAT_JAM) - SEKARANG;
@@ -83,7 +74,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // Tambahkan event saat tombol di-klik
-    if (!claimButton.listenerAdded) { // Mencegah event listener ganda
+    if (claimButton && !claimButton.listenerAdded) { // Mencegah event listener ganda
       claimButton.addEventListener('click', async () => {
         // Cek ulang (jaga-jaga)
         const waktuKlik = Date.now();

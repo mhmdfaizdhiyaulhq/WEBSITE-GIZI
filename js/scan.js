@@ -224,22 +224,35 @@ function startScanner() {
 
   try {
     if (!codeReader) codeReader = new ZXing.BrowserMultiFormatReader();
+    
+    // Coba dekode dari perangkat video
     codeReader.decodeFromVideoDevice(undefined, 'video-scanner', (result, err) => {
       if (result) {
         onScanSuccess(result);
       }
+      
+      // Penanganan Error (ZXing Errors)
       if (err && !(err instanceof ZXing.NotFoundException)) {
         console.error(err);
         barcodeResultEl.textContent = `Error: ${err.message}`;
         if (err.message && err.message.toLowerCase().includes('permission')) {
           showScanAlert('Izin Kamera Tidak Diberikan', 'Periksa pengaturan izin kamera pada browser Anda.', 'warning');
         }
+        // Jika terjadi error, nonaktifkan animasi dan aktifkan kembali tombol
+        stopScanner(false);
+        startBtn.disabled = false;
       }
     });
+    
     barcodeResultEl.textContent = 'Arahkan barcode atau QR Code ke kamera...';
+    
   } catch (e) {
+    // Penanganan Error (General JS/Browser Errors)
     console.error('Gagal mulai scanner:', e);
     barcodeResultEl.textContent = 'Gagal membuka kamera. Cek console.';
+    
+    // ▼▼▼ PERBAIKAN UTAMA: Aktifkan kembali tombol jika inisialisasi gagal ▼▼▼
+    stopScanner(false); // Pastikan animasi dihentikan dan video disembunyikan
     startBtn.disabled = false; 
   }
 }

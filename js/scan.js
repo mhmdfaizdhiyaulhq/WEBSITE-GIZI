@@ -1,5 +1,5 @@
 /**
- * scan.js (Diperbaiki: Dengan Penundaan dan Manajemen Tampilan Video)
+ * scan.js (Diperbaiki: Dengan Penundaan, Manajemen Tampilan Video, dan Debugging String)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -9,7 +9,8 @@ let codeReader = null;
 
 // --- Database produk lokal (contoh) ---
 const productDatabase = {
-  '1122334455': {
+  // PASTIKAN SEMUA KUNCI BARCODE DI SINI HANYA BERISI ANGKA
+  '8992761132711': {
     name: 'Jus Apel Kemasan (250ml)',
     info: '<strong>Energi:</strong> 120 kkal | <strong>Gula:</strong> 28g | <strong>Lemak:</strong> 0g',
     warning: '⚠️ TINGGI GULA!',
@@ -120,22 +121,28 @@ function displayProductInfo(item, codeText) {
 // --- Logika bila hasil didapat ---
 function onScanSuccess(result) {
   
-  // ▼▼▼ PERBAIKAN: Format kode yang didapat (HILANGKAN SPASI) ▼▼▼
+  // Memformat kode: Menghilangkan spasi dan memastikan tipe string
   const rawCode = result.getText();
   const codeText = String(rawCode).trim(); 
-  // ▲▲▲ AKHIR PERBAIKAN ▼▼▼
   
   const item = productDatabase[codeText];
 
   if (item) {
     displayProductInfo(item, codeText);
   } else {
+    // KODE TIDAK DITEMUKAN: Tampilkan pesan debug di Console
+    
+    const codeArray = Array.from(codeText).map(c => c.charCodeAt(0));
+    console.error(`KODE TIDAK COCOK. Kode yang Terdeteksi: "${codeText}"`);
+    console.error(`Representasi Karakter (ASCII/Unicode):`, codeArray);
+    console.error(`Kunci Database Tersedia (untuk perbandingan):`, Object.keys(productDatabase));
+    
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
-    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Anda bisa menambahkannya atau coba QR aplikasi.</p>`;
+    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Harap periksa Console untuk karakter tersembunyi yang mungkin menyebabkan kegagalan pencarian.</p>`;
     addPoinForScan();
   }
 
-  // Tunda pemanggilan stopScanner. Setelah hasil tampil, kamera dimatikan dan disembunyikan
+  // Tunda pemanggilan stopScanner untuk memastikan hasil terlihat
   setTimeout(() => {
     stopScanner(true); 
     videoEl.style.display = 'none'; 
@@ -149,11 +156,11 @@ function stopScanner(preserveResult = false) {
     try { codeReader.reset(); } catch(e){ /* ignore */ }
   }
   
-  // HANYA HAPUS HASIL jika preserveResult adalah false (saat tombol Stop ditekan)
+  // HANYA HAPUS HASIL jika preserveResult adalah false
   if (!preserveResult) {
     barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
     productInfoEl.innerHTML = '';
-    videoEl.style.display = 'none'; // Sembunyikan juga saat reset paksa
+    videoEl.style.display = 'none'; 
   }
 }
 
@@ -162,7 +169,7 @@ function startScanner() {
   videoEl.style.display = 'block'; 
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
-  startBtn.disabled = true; // Nonaktifkan tombol saat kamera aktif
+  startBtn.disabled = true; 
 
   try {
     if (!codeReader) codeReader = new ZXing.BrowserMultiFormatReader();
@@ -182,7 +189,7 @@ function startScanner() {
   } catch (e) {
     console.error('Gagal mulai scanner:', e);
     barcodeResultEl.textContent = 'Gagal membuka kamera. Cek console.';
-    startBtn.disabled = false; // Aktifkan lagi jika gagal
+    startBtn.disabled = false; 
   }
 }
 

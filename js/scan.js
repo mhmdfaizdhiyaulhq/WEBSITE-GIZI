@@ -1,6 +1,5 @@
 /**
- * scan.js
- * Versi: GiziPoin
+ * scan.js (Diperbaiki)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -67,11 +66,7 @@ if (typeof onAuthStateChanged === 'function') {
 function showScanAlert(title, message, type='success') {
   // type: 'success' atau 'warning'
   const div = document.createElement('div');
-  
-  // ▼▼▼ PERBAIKAN: Menggunakan kelas Bootstrap 'alert' yang standar ▼▼▼
   div.className = 'alert alert-dismissible fade show scan-alert ' + (type === 'success' ? 'alert-success' : 'alert-warning');
-  // ▲▲▲ AKHIR PERBAIKAN ▼▼▼
-  
   div.innerHTML = `<strong>${title}</strong> — ${message}`;
   scanAlertsEl.innerHTML = ''; // ganti alert lama
   scanAlertsEl.appendChild(div);
@@ -135,15 +130,29 @@ function onScanSuccess(result) {
   } else {
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
     productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Anda bisa menambahkannya atau coba QR aplikasi.</p>`;
-    // beri poin juga agar pengguna tetap mendapat reward
     addPoinForScan();
   }
 
-  // hentikan scanner agar hasil tetap terlihat
-  stopScanner();
+  // Hentikan scanner, tapi JANGAN hapus hasilnya (argumen true)
+  stopScanner(true); 
 }
 
 // --- Kontrol scanner ---
+
+// ▼▼▼ PERBAIKAN: Tambahkan argumen 'preserveResult' ▼▼▼
+function stopScanner(preserveResult = false) {
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e){ /* ignore */ }
+  }
+  
+  // HANYA HAPUS HASIL jika preserveResult adalah false (ketika tombol "Stop" ditekan)
+  if (!preserveResult) {
+    barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
+    productInfoEl.innerHTML = '';
+  }
+}
+// ▲▲▲ AKHIR PERBAIKAN ▼▼▼
+
 function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
@@ -169,19 +178,10 @@ function startScanner() {
   }
 }
 
-function stopScanner() {
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e){ /* ignore */ }
-  }
-  barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
-  productInfoEl.innerHTML = '';
-}
-
 // --- Event listeners ---
 window.addEventListener('load', () => {
   startBtn.addEventListener('click', startScanner);
-  stopBtn.addEventListener('click', stopScanner);
-
-  // (opsional) jika mau auto-start saat halaman load, uncomment:
-  // startScanner();
+  
+  // Panggil stopScanner TANPA argumen (atau dengan false) agar mereset tampilan
+  stopBtn.addEventListener('click', () => stopScanner(false)); 
 });

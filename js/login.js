@@ -7,8 +7,8 @@ import {
   doc,
   setDoc,
   sendPasswordResetEmail,
-  setPersistence,             // <-- ALAT BARU
-  browserLocalPersistence   // <-- ALAT BARU
+  setPersistence,             
+  browserLocalPersistence   
 } from './firebase.js';
 
 // Ambil semua elemen dari HTML
@@ -21,7 +21,6 @@ const showLoginLink = document.getElementById('show-login');
 const showLupaLink = document.getElementById('show-lupa'); 
 const backToLoginLink = document.getElementById('back-to-login'); 
 
-// ... (Kode elemen form biarkan sama) ...
 const registerBtn = document.getElementById('register-btn');
 const registerNama = document.getElementById('register-nama');
 const registerEmail = document.getElementById('register-email');
@@ -32,7 +31,7 @@ const loginPass = document.getElementById('login-pass');
 const lupaBtn = document.getElementById('lupa-btn');
 const lupaEmail = document.getElementById('lupa-email');
 
-// ... (Kode ganti form biarkan sama) ...
+// --- Fungsi Ganti Form ---
 showRegisterLink.addEventListener('click', (e) => {
   e.preventDefault();
   formLogin.style.display = 'none';
@@ -58,30 +57,42 @@ backToLoginLink.addEventListener('click', (e) => {
   formLupa.style.display = 'none';
 });
 
-// ... (Fungsi Registrasi biarkan sama) ...
+// --- FUNGSI REGISTRASI ---
 registerBtn.addEventListener('click', async (e) => {
   e.preventDefault(); 
   const nama = registerNama.value;
   const email = registerEmail.value;
   const password = registerPass.value;
+  
   if (!nama || !email || !password) {
     alert("Harap isi semua kolom!");
     return;
   }
+  if (password.length < 6) { 
+    alert("Password minimal 6 karakter.");
+    return;
+  }
+  
   try {
     // Saat REGISTRASI, kita juga set persistence
-    await setPersistence(auth, browserLocalPersistence); // <-- TAMBAHAN
+    await setPersistence(auth, browserLocalPersistence); 
     
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    
+    // ▼▼▼ PERBAIKAN: Tambahkan inisialisasi barcodeKlaimTerakhir: [] ▼▼▼
     await setDoc(doc(db, "users", user.uid), {
       nama: nama,
       email: email,
       poin: 0,
-      terakhirKlaim: 0
+      terakhirKlaim: 0,
+      barcodeKlaimTerakhir: [] // PENTING: Untuk fitur anti-spam barcode
     });
+    // ▲▲▲ AKHIR PERBAIKAN ▼▼▼
+    
     alert(`Akun untuk ${nama} berhasil dibuat! Mengalihkan ke halaman utama...`);
     window.location.href = 'index.html';
+    
   } catch (error) {
     console.error("Error mendaftar:", error);
     alert("Error: " + error.message);
@@ -101,10 +112,8 @@ loginBtn.addEventListener('click', async (e) => {
   }
 
   try {
-    // ▼▼▼ BARIS INI KITA TAMBAHKAN ▼▼▼
     // Perintahkan Firebase untuk "Ingat Saya" di seluruh browser
     await setPersistence(auth, browserLocalPersistence);
-    // ▲▲▲ BARIS INI KITA TAMBAHKAN ▲▲▲
 
     // 1. Coba login dengan Firebase Auth
     await signInWithEmailAndPassword(auth, email, password);
@@ -118,7 +127,7 @@ loginBtn.addEventListener('click', async (e) => {
   }
 });
 
-// ... (Fungsi Lupa Password biarkan sama) ...
+// --- FUNGSI LUPA PASSWORD ---
 lupaBtn.addEventListener('click', async (e) => {
   e.preventDefault();
   const email = lupaEmail.value;

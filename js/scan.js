@@ -1,5 +1,5 @@
 /**
- * scan.js (Diperbaiki)
+ * scan.js (Diperbaiki: Menghilangkan Tampilan Kamera Setelah Scan Berhasil)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -30,7 +30,6 @@ const productDatabase = {
     suggestion: '<strong>Saran penyajian:</strong> Tambahkan buah segar untuk mempercepat pemulihan cairan tubuh.',
     isProduct: true
   },
-  // Aksi aplikasi lewat QR
   'APP_BUKA_PROFIL': {
     name: 'Aksi: Buka Profil',
     info: '<strong>Status:</strong> Perintah buka profil diterima.',
@@ -53,6 +52,7 @@ const stopBtn = document.getElementById('stop-scan-btn');
 const barcodeResultEl = document.getElementById('barcode-result');
 const productInfoEl = document.getElementById('product-info');
 const scanAlertsEl = document.getElementById('scan-alerts');
+const videoEl = document.getElementById('video-scanner'); // Ambil elemen video
 
 // --- Auth state ---
 let currentUser = null;
@@ -64,14 +64,12 @@ if (typeof onAuthStateChanged === 'function') {
 
 // --- Helper: tampilkan alert singkat ---
 function showScanAlert(title, message, type='success') {
-  // type: 'success' atau 'warning'
   const div = document.createElement('div');
   div.className = 'alert alert-dismissible fade show scan-alert ' + (type === 'success' ? 'alert-success' : 'alert-warning');
   div.innerHTML = `<strong>${title}</strong> — ${message}`;
-  scanAlertsEl.innerHTML = ''; // ganti alert lama
+  scanAlertsEl.innerHTML = ''; 
   scanAlertsEl.appendChild(div);
 
-  // hilangkan setelah 3.5s
   setTimeout(()=> {
     if (scanAlertsEl.contains(div)) scanAlertsEl.removeChild(div);
   }, 3500);
@@ -114,7 +112,6 @@ function displayProductInfo(item, codeText) {
     <p style="text-align:center; font-style:italic; margin-top:8px; color: #777;">${item.suggestion}</p>
   `;
 
-  // jika produk -> poin
   if (item.isProduct) {
     addPoinForScan();
   }
@@ -133,29 +130,34 @@ function onScanSuccess(result) {
     addPoinForScan();
   }
 
-  // Hentikan scanner, tapi JANGAN hapus hasilnya (argumen true)
-  stopScanner(true); 
+  // Tunda pemanggilan stopScanner. Setelah hasil tampil, kamera dimatikan dan disembunyikan
+  setTimeout(() => {
+    stopScanner(true); 
+    videoEl.style.display = 'none'; // ▼▼▼ PERBAIKAN: Sembunyikan video setelah berhasil scan ▼▼▼
+    startBtn.disabled = false; // Pastikan tombol Start aktif lagi
+  }, 500); 
 }
 
 // --- Kontrol scanner ---
-
-// ▼▼▼ PERBAIKAN: Tambahkan argumen 'preserveResult' ▼▼▼
 function stopScanner(preserveResult = false) {
   if (codeReader) {
     try { codeReader.reset(); } catch(e){ /* ignore */ }
   }
   
-  // HANYA HAPUS HASIL jika preserveResult adalah false (ketika tombol "Stop" ditekan)
+  // HANYA HAPUS HASIL jika preserveResult adalah false (saat tombol Stop ditekan)
   if (!preserveResult) {
     barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
     productInfoEl.innerHTML = '';
+    videoEl.style.display = 'none'; // Sembunyikan juga saat reset paksa
   }
 }
-// ▲▲▲ AKHIR PERBAIKAN ▼▼▼
 
 function startScanner() {
+  // ▼▼▼ PERBAIKAN: Tampilkan video saat memulai scan ▼▼▼
+  videoEl.style.display = 'block'; 
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
+  startBtn.disabled = true; // Nonaktifkan tombol saat kamera aktif
 
   try {
     if (!codeReader) codeReader = new ZXing.BrowserMultiFormatReader();
@@ -175,13 +177,20 @@ function startScanner() {
   } catch (e) {
     console.error('Gagal mulai scanner:', e);
     barcodeResultEl.textContent = 'Gagal membuka kamera. Cek console.';
+    startBtn.disabled = false; // Aktifkan lagi jika gagal
   }
 }
 
 // --- Event listeners ---
 window.addEventListener('load', () => {
+  // Sembunyikan video secara default saat halaman dimuat
+  videoEl.style.display = 'none'; 
+  
   startBtn.addEventListener('click', startScanner);
   
-  // Panggil stopScanner TANPA argumen (atau dengan false) agar mereset tampilan
-  stopBtn.addEventListener('click', () => stopScanner(false)); 
+  // Tombol stop akan mereset tampilan dan mengaktifkan tombol start
+  stopBtn.addEventListener('click', () => {
+      stopScanner(false);
+      startBtn.disabled = false; 
+  }); 
 });

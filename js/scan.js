@@ -9,7 +9,7 @@ let codeReader = null;
 
 // --- Database produk lokal (contoh) ---
 const productDatabase = {
-  '8992761132711': {
+  '1122334455': {
     name: 'Jus Apel Kemasan (250ml)',
     info: '<strong>Energi:</strong> 120 kkal | <strong>Gula:</strong> 28g | <strong>Lemak:</strong> 0g',
     warning: '⚠️ TINGGI GULA!',

@@ -1,8 +1,9 @@
 // Import "alat" yang sesungguhnya dari firebase.js
+// Kita tambahkan 'setDoc' untuk menyimpan data
 import { auth, db, onAuthStateChanged, signOut, doc, getDoc, setDoc } from './firebase.js';
 
 // Ambil elemen-elemen dari halaman
-const dashboardLoading = document.getElementById('dashboard-loading');
+const dashboardLoading = document.getElementById('dashboard-loading'); // <-- BARU
 const dashboardTamu = document.getElementById('dashboard-tamu');
 const dashboardMember = document.getElementById('dashboard-member');
 const navLoginLogout = document.getElementById('nav-login-logout'); 
@@ -30,9 +31,7 @@ onAuthStateChanged(auth, async (user) => {
       userTerakhirKlaim = userDoc.data().terakhirKlaim || 0;
       userPoinDisplay.innerHTML = userPoin;
     } else {
-      console.log("Tidak ada data poin untuk pengguna ini. Membuat data baru...");
-      // Inisialisasi data di Firestore jika tidak ada
-      await setDoc(userDocRef, { poin: 0, terakhirKlaim: 0 }, { merge: true });
+      console.log("Tidak ada data poin untuk pengguna ini.");
       userPoinDisplay.innerHTML = 0;
     }
 
@@ -74,7 +73,7 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     // Tambahkan event saat tombol di-klik
-    if (claimButton && !claimButton.listenerAdded) { // Mencegah event listener ganda
+    if (!claimButton.listenerAdded) { // Mencegah event listener ganda
       claimButton.addEventListener('click', async () => {
         // Cek ulang (jaga-jaga)
         const waktuKlik = Date.now();

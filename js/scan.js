@@ -1,5 +1,6 @@
 /**
- * scan.js (Final: Animasi Garis Scan & Manajemen Tampilan)
+ * scan.js
+ * Versi: GiziPoin
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -30,6 +31,7 @@ const productDatabase = {
     suggestion: '<strong>Saran penyajian:</strong> Tambahkan buah segar untuk mempercepat pemulihan cairan tubuh.',
     isProduct: true
   },
+  // Aksi aplikasi lewat QR
   'APP_BUKA_PROFIL': {
     name: 'Aksi: Buka Profil',
     info: '<strong>Status:</strong> Perintah buka profil diterima.',
@@ -52,10 +54,8 @@ const stopBtn = document.getElementById('stop-scan-btn');
 const barcodeResultEl = document.getElementById('barcode-result');
 const productInfoEl = document.getElementById('product-info');
 const scanAlertsEl = document.getElementById('scan-alerts');
-const videoEl = document.getElementById('video-scanner'); 
-const scannerLineEl = document.getElementById('scanner-line'); // Ambil elemen garis animasi
 
-// --- Auth state (dihilangkan untuk brevity) ---
+// --- Auth state ---
 let currentUser = null;
 if (typeof onAuthStateChanged === 'function') {
   onAuthStateChanged(auth, (user) => {
@@ -63,34 +63,43 @@ if (typeof onAuthStateChanged === 'function') {
   });
 }
 
-// --- Helper: tampilkan alert singkat (dihilangkan untuk brevity) ---
+// --- Helper: tampilkan alert singkat ---
 function showScanAlert(title, message, type='success') {
+  // type: 'success' atau 'warning'
   const div = document.createElement('div');
+  
+  // ▼▼▼ PERBAIKAN: Menggunakan kelas Bootstrap 'alert' yang standar ▼▼▼
   div.className = 'alert alert-dismissible fade show scan-alert ' + (type === 'success' ? 'alert-success' : 'alert-warning');
+  // ▲▲▲ AKHIR PERBAIKAN ▼▼▼
+  
   div.innerHTML = `<strong>${title}</strong> — ${message}`;
-  scanAlertsEl.innerHTML = ''; 
+  scanAlertsEl.innerHTML = ''; // ganti alert lama
   scanAlertsEl.appendChild(div);
 
+  // hilangkan setelah 3.5s
   setTimeout(()=> {
     if (scanAlertsEl.contains(div)) scanAlertsEl.removeChild(div);
   }, 3500);
 }
 
-// --- Menambah poin ke Firestore (dihilangkan untuk brevity) ---
+// --- Menambah poin ke Firestore (jika ada) ---
 async function addPoinForScan() {
   if (!currentUser || !auth) {
     showScanAlert('Poin tidak ditambahkan', 'Login untuk mendapatkan poin.', 'warning');
     return;
   }
-  // Logika penambahan poin yang sudah ada
+
   try {
     const POIN_DAPAT = 5;
     const userDocRef = doc(db, "users", currentUser.uid);
     const userDoc = await getDoc(userDocRef);
+
     let poinSekarang = 0;
     if (userDoc.exists()) poinSekarang = userDoc.data().poin || 0;
+
     const poinBaru = poinSekarang + POIN_DAPAT;
     await setDoc(userDocRef, { poin: poinBaru }, { merge: true });
+
     showScanAlert('Poin +5', `Anda mendapat ${POIN_DAPAT} poin. Total: ${poinBaru}.`, 'success');
   } catch (err) {
     console.error('Gagal update poin:', err);
@@ -98,7 +107,7 @@ async function addPoinForScan() {
   }
 }
 
-// --- Tampilkan hasil (dihilangkan untuk brevity) ---
+// --- Tampilkan hasil ---
 function displayProductInfo(item, codeText) {
   barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
   productInfoEl.innerHTML = `
@@ -109,6 +118,8 @@ function displayProductInfo(item, codeText) {
     <p class="${item.warning.includes('TINGGI') ? 'text-danger' : 'text-success'}" style="font-weight:800; text-align:center;">${item.warning}</p>
     <p style="text-align:center; font-style:italic; margin-top:8px; color: #777;">${item.suggestion}</p>
   `;
+
+  // jika produk -> poin
   if (item.isProduct) {
     addPoinForScan();
   }
@@ -116,61 +127,26 @@ function displayProductInfo(item, codeText) {
 
 // --- Logika bila hasil didapat ---
 function onScanSuccess(result) {
-  
-  const rawCode = result.getText();
-  const codeText = String(rawCode).trim(); 
-  
+  const codeText = result.getText();
   const item = productDatabase[codeText];
 
   if (item) {
     displayProductInfo(item, codeText);
   } else {
-    // Tampilan Debugging Lanjutan jika kode tidak ditemukan
-    const codeArray = Array.from(codeText).map(c => c.charCodeAt(0));
-    console.error(`KODE TIDAK COCOK. Kode yang Terdeteksi: "${codeText}"`);
-    console.error(`Representasi Karakter (ASCII/Unicode):`, codeArray);
-    
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
-    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal.</p>`;
+    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Anda bisa menambahkannya atau coba QR aplikasi.</p>`;
+    // beri poin juga agar pengguna tetap mendapat reward
     addPoinForScan();
   }
 
-  // Menggunakan Timeout untuk memastikan hasil ditampilkan sebelum video ditutup
-  setTimeout(() => {
-    stopScanner(true); 
-    videoEl.style.display = 'none'; 
-    startBtn.disabled = false; 
-  }, 500); 
+  // hentikan scanner agar hasil tetap terlihat
+  stopScanner();
 }
 
 // --- Kontrol scanner ---
-function stopScanner(preserveResult = false) {
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e){ /* ignore */ }
-  }
-  
-  // ▼▼▼ Animasi: Hentikan animasi garis scan ▼▼▼
-  scannerLineEl.style.display = 'none'; 
-  scannerLineEl.style.animation = 'none';
-
-  // HANYA HAPUS HASIL jika preserveResult adalah false
-  if (!preserveResult) {
-    barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
-    productInfoEl.innerHTML = '';
-    videoEl.style.display = 'none'; 
-  }
-}
-
 function startScanner() {
-  // Tampilkan video saat memulai scan
-  videoEl.style.display = 'block'; 
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
-  startBtn.disabled = true; 
-
-  // ▼▼▼ Animasi: Mulai animasi garis scan ▼▼▼
-  scannerLineEl.style.display = 'block';
-  scannerLineEl.style.animation = 'scan-down-up 3s infinite alternate'; 
 
   try {
     if (!codeReader) codeReader = new ZXing.BrowserMultiFormatReader();
@@ -190,20 +166,22 @@ function startScanner() {
   } catch (e) {
     console.error('Gagal mulai scanner:', e);
     barcodeResultEl.textContent = 'Gagal membuka kamera. Cek console.';
-    startBtn.disabled = false; 
   }
+}
+
+function stopScanner() {
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e){ /* ignore */ }
+  }
+  barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
+  productInfoEl.innerHTML = '';
 }
 
 // --- Event listeners ---
 window.addEventListener('load', () => {
-  // Sembunyikan video secara default saat halaman dimuat
-  videoEl.style.display = 'none'; 
-  
   startBtn.addEventListener('click', startScanner);
-  
-  // Tombol stop akan mereset tampilan dan mengaktifkan tombol start
-  stopBtn.addEventListener('click', () => {
-      stopScanner(false);
-      startBtn.disabled = false; 
-  }); 
+  stopBtn.addEventListener('click', stopScanner);
+
+  // (opsional) jika mau auto-start saat halaman load, uncomment:
+  // startScanner();
 });

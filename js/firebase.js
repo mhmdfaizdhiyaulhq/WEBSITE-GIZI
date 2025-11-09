@@ -1,11 +1,12 @@
 // Import fungsi yang kita perlukan
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+// TAMBAHKAN 'setPersistence' dan 'browserLocalPersistence' di baris di bawah
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, sendPasswordResetEmail, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 // ▼▼▼ PASTIKAN INI ADALAH KONFIGURASI FIREBASE ASLI ANDA ▼▼▼
 const firebaseConfig = {
-  apiKey: "AIzaSyD0UenQNNxv9YphNHU8QC2JKoD7nD4igv0", // GANTI DENGAN KUNCI ASLI ANDA!
+  apiKey: "AIzaSyD0UenQNNxv9YphNHU8QC2JKoD7nD4igv0", // (Kunci asli Anda)
   authDomain: "gizi-poin.firebaseapp.com",
   projectId: "gizi-poin",
   storageBucket: "gizi-poin.firebasestorage.app",
@@ -31,6 +32,6 @@ export {
   setDoc,
   getDoc,
   sendPasswordResetEmail,
-  setPersistence,
-  browserLocalPersistence
+  setPersistence, // <-- Tambahkan ini
+  browserLocalPersistence // <-- Tambahkan ini
 };

@@ -1,6 +1,5 @@
 /**
- * scan.js (Versi Dikembalikan: Tanpa Pengecekan Klaim Barcode 24 Jam)
- * * Fitur: Animasi Garis Scan & Pemberian Poin Instan.
+ * scan.js (Final: Anti-Spam Poin, Animasi Garis Scan & Stabilitas Kode)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -77,31 +76,63 @@ function showScanAlert(title, message, type='success') {
   }, 3500);
 }
 
-// --- FUNGSI SEDERHANA: Menambah poin tanpa cek riwayat 24 jam ---
-async function addPoinForScan() {
+// --- FUNGSI BARU: Menambah poin ke Firestore dengan cek 24 jam ---
+async function addPoinForScan(codeText) { 
   if (!currentUser || !auth) {
     showScanAlert('Poin tidak ditambahkan', 'Login untuk mendapatkan poin.', 'warning');
-    return true; 
+    return;
   }
 
   try {
     const POIN_DAPAT = 5;
+    const DUA_PULUH_EMPAT_JAM = 24 * 60 * 60 * 1000;
+    const SEKARANG = Date.now();
+
     const userDocRef = doc(db, "users", currentUser.uid);
     const userDoc = await getDoc(userDocRef);
 
     let poinSekarang = 0;
-    if (userDoc.exists()) poinSekarang = userDoc.data().poin || 0;
+    // Struktur: [{code: '123', time: 167888...}, ...]
+    let barcodeKlaimTerakhir = userDoc.exists() ? userDoc.data().barcodeKlaimTerakhir || [] : [];
+    
+    if (userDoc.exists()) {
+      poinSekarang = userDoc.data().poin || 0;
+    }
 
+    // 1. Bersihkan daftar: Hapus entri yang sudah kadaluarsa (lebih dari 24 jam)
+    const daftarBersih = barcodeKlaimTerakhir.filter(entry => {
+      return (SEKARANG - entry.time) < DUA_PULUH_EMPAT_JAM;
+    });
+
+    // 2. Cek apakah kode ini sudah ada di daftar bersih
+    const kodeSudahDiklaim = daftarBersih.some(entry => entry.code === codeText);
+
+    if (kodeSudahDiklaim) {
+      // Kode sudah pernah diklaim dalam 24 jam
+      showScanAlert('Klaim Gagal', 'Barcode ini sudah Anda scan dalam 24 jam terakhir. Coba produk baru!', 'warning');
+      return; 
+    }
+
+    // --- BARCODE BARU: Proses Klaim Poin ---
     const poinBaru = poinSekarang + POIN_DAPAT;
-    await setDoc(userDocRef, { poin: poinBaru }, { merge: true }); // TIDAK LAGI MENGIRIM barcodeKlaimTerakhir
+    
+    // 3. Tambahkan kode baru ke daftar
+    daftarBersih.push({
+      code: codeText,
+      time: SEKARANG
+    });
+
+    // 4. Simpan poin baru dan daftar barcode baru ke Firestore
+    await setDoc(userDocRef, { 
+      poin: poinBaru,
+      barcodeKlaimTerakhir: daftarBersih // Simpan daftar yang sudah diperbarui
+    }, { merge: true });
 
     showScanAlert('Poin +5', `Anda mendapat ${POIN_DAPAT} poin. Total: ${poinBaru}.`, 'success');
-    return true; 
-    
+
   } catch (err) {
     console.error('Gagal update poin:', err);
     showScanAlert('Error', 'Gagal menambahkan poin (cek console).', 'warning');
-    return true; 
   }
 }
 
@@ -116,42 +147,41 @@ function displayProductInfo(item, codeText) {
     <p class="${item.warning.includes('TINGGI') ? 'text-danger' : 'text-success'}" style="font-weight:800; text-align:center;">${item.warning}</p>
     <p style="text-align:center; font-style:italic; margin-top:8px; color: #777;">${item.suggestion}</p>
   `;
+
+  // Tidak perlu memanggil addPoinForScan di sini, karena sudah dipanggil di onScanSuccess
 }
 
 // --- Logika bila hasil didapat ---
-async function onScanSuccess(result) {
+function onScanSuccess(result) {
   
   const rawCode = result.getText();
   const codeText = String(rawCode).trim(); 
   
   const item = productDatabase[codeText];
-  let shouldStopScanner = true;
 
   if (item) {
     displayProductInfo(item, codeText);
-    
-    // HANYA TAMBAH POIN JIKA ITU PRODUK (bukan QR Aksi)
-    if (item.isProduct) {
-        shouldStopScanner = await addPoinForScan(); // Panggil tanpa codeText
-    }
   } else {
-    // Produk tidak dikenal
+    // KODE DEBUGGING: (Bisa dihapus jika sudah tidak diperlukan)
+    const codeArray = Array.from(codeText).map(c => c.charCodeAt(0));
+    console.error(`KODE TIDAK COCOK. Kode yang Terdeteksi: "${codeText}"`);
+    console.error(`Representasi Karakter (ASCII/Unicode):`, codeArray);
+    
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
     productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal.</p>`;
-    
-    // Tambah poin untuk produk tak dikenal
-    shouldStopScanner = await addPoinForScan(); // Panggil tanpa codeText
   }
 
-  // JIKA shouldStopScanner TRUE (berhasil klaim/klaim tidak diperlukan/gagal login)
-  if (shouldStopScanner) {
-      // Menggunakan Timeout untuk memastikan hasil ditampilkan sebelum video ditutup
-      setTimeout(() => {
-        stopScanner(true); 
-        videoEl.style.display = 'none'; 
-        startBtn.disabled = false; 
-      }, 500); 
+  // Hanya tambahkan poin jika ini adalah produk (isProduct: true) atau kode tidak dikenal (item: undefined)
+  if (item && item.isProduct || !item) {
+      addPoinForScan(codeText); 
   }
+
+  // Tunda pemanggilan stopScanner untuk memastikan hasil terlihat
+  setTimeout(() => {
+    stopScanner(true); 
+    videoEl.style.display = 'none'; 
+    startBtn.disabled = false; 
+  }, 500); 
 }
 
 // --- Kontrol scanner ---
@@ -195,19 +225,12 @@ function startScanner() {
         if (err.message && err.message.toLowerCase().includes('permission')) {
           showScanAlert('Izin Kamera Tidak Diberikan', 'Periksa pengaturan izin kamera pada browser Anda.', 'warning');
         }
-        // Nonaktifkan animasi dan aktifkan kembali tombol jika terjadi error saat berjalan
-        stopScanner(false);
-        startBtn.disabled = false;
       }
     });
     barcodeResultEl.textContent = 'Arahkan barcode atau QR Code ke kamera...';
   } catch (e) {
-    // Penanganan Error (General JS/Browser Errors)
     console.error('Gagal mulai scanner:', e);
     barcodeResultEl.textContent = 'Gagal membuka kamera. Cek console.';
-    
-    // Nonaktifkan animasi dan aktifkan kembali tombol jika inisialisasi gagal
-    stopScanner(false); 
     startBtn.disabled = false; 
   }
 }

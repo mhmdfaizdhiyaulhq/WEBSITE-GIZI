@@ -10,12 +10,11 @@ const allButtons = document.querySelectorAll('.btn-tukar');
 let currentUserPoin = 0; // Variabel untuk menyimpan poin pengguna
 let userDocRef = null; // Variabel untuk menyimpan referensi dokumen
 
-// ▼▼▼ PERBAIKAN: Nonaktifkan tombol saat loading dan beri status loading ▼▼▼
+// Nonaktifkan tombol saat loading dan beri status loading
 allButtons.forEach(button => {
   button.disabled = true;
   button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status"></span>`;
 });
-// ▲▲▲ AKHIR PERBAIKAN ▲▲▲
 
 // Cek status login
 onAuthStateChanged(auth, async (user) => {
@@ -35,7 +34,9 @@ onAuthStateChanged(auth, async (user) => {
         currentUserPoin = userDoc.data().poin || 0;
         updatePoinDisplay(currentUserPoin);
       } else {
-        console.log("Dokumen pengguna tidak ditemukan!");
+        console.log("Dokumen pengguna tidak ditemukan! Menginisialisasi data.");
+         // Inisialisasi data di Firestore jika tidak ada
+        await setDoc(userDocRef, { poin: 0, terakhirKlaim: 0 }, { merge: true });
         updatePoinDisplay(0); 
       }
     } catch (error) { 
@@ -54,12 +55,11 @@ onAuthStateChanged(auth, async (user) => {
     rewardList.style.display = 'none';
     guestMessage.style.display = 'block';
 
-    // ▼▼▼ PERBAIKAN: Pastikan tombol dinonaktifkan untuk tamu ▼▼▼
+    // Pastikan tombol dinonaktifkan untuk tamu
     allButtons.forEach(button => {
         button.disabled = true;
         button.innerHTML = "Login untuk Tukar";
     });
-    // ▲▲▲ AKHIR PERBAIKAN ▲▲▲
   }
 });
 

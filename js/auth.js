@@ -31,8 +31,18 @@ onAuthStateChanged(auth, async (user) => {
       userTerakhirKlaim = userDoc.data().terakhirKlaim || 0;
       userPoinDisplay.innerHTML = userPoin;
     } else {
-      console.log("Tidak ada data poin untuk pengguna ini.");
+      // ▼▼▼ PERBAIKAN PENTING: INISIALISASI DOKUMEN JIKA TIDAK ADA ▼▼▼
+      console.log("Tidak ada data pengguna. Membuat dan menginisialisasi dokumen baru...");
+       
+      // Inisialisasi data di Firestore jika tidak ada
+      await setDoc(userDocRef, { 
+        poin: 0, 
+        terakhirKlaim: 0, 
+        barcodeKlaimTerakhir: [] // Field PENTING untuk fitur anti-spam barcode
+      }, { merge: true });
+      
       userPoinDisplay.innerHTML = 0;
+      // ▲▲▲ AKHIR PERBAIKAN PENTING ▼▼▼
     }
 
     // 2. Ubah link "Login" di Navbar menjadi "Logout"
@@ -55,7 +65,7 @@ onAuthStateChanged(auth, async (user) => {
       }
     }
     
-    // 3. LOGIKA UNTUK KLAIM HARIAN
+    // 3. LOGIKA UNTUK KLAIM HARIAN (TIDAK BERUBAH)
     const SEKARANG = Date.now();
     const DUA_PULUH_EMPAT_JAM = 24 * 60 * 60 * 1000;
     const sisaWaktu = (userTerakhirKlaim + DUA_PULUH_EMPAT_JAM) - SEKARANG;

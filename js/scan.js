@@ -122,20 +122,20 @@ function onScanSuccess(result) {
   const item = productDatabase[codeText];
 
   if (item) {
-    // Jika kode DITEMUKAN di database
+    // KODE DITEMUKAN di database
+    // displayProductInfo akan memanggil addPoinForScan() jika isProduct: true
     displayProductInfo(item, codeText);
+    
   } else {
-    // Jika kode TIDAK DITEMUKAN
+    // KODE TIDAK DITEMUKAN di database lokal
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
-    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Poin tetap diberikan.</p>`;
-    // Beri poin untuk kode yang valid namun tidak terdaftar
-    addPoinForScan();
+    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Poin **TIDAK** diberikan.</p>`;
+    // PENTING: JANGAN panggil addPoinForScan() di sini!
+    
+    // Hentikan scanner agar hasil tetap terlihat
+    stopScanner(); 
   }
-
-  // Hentikan scanner agar hasil tetap terlihat
-  stopScanner(); 
 }
-
 // --- Kontrol scanner (dengan perbaikan error handling) ---
 function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';

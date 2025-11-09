@@ -1,5 +1,5 @@
 /**
- * scan.js (Diperbaiki: Menghilangkan Tampilan Kamera Setelah Scan Berhasil)
+ * scan.js (Diperbaiki: Dengan Penundaan dan Manajemen Tampilan Video)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -119,7 +119,12 @@ function displayProductInfo(item, codeText) {
 
 // --- Logika bila hasil didapat ---
 function onScanSuccess(result) {
-  const codeText = result.getText();
+  
+  // ▼▼▼ PERBAIKAN: Format kode yang didapat (HILANGKAN SPASI) ▼▼▼
+  const rawCode = result.getText();
+  const codeText = String(rawCode).trim(); 
+  // ▲▲▲ AKHIR PERBAIKAN ▼▼▼
+  
   const item = productDatabase[codeText];
 
   if (item) {
@@ -133,8 +138,8 @@ function onScanSuccess(result) {
   // Tunda pemanggilan stopScanner. Setelah hasil tampil, kamera dimatikan dan disembunyikan
   setTimeout(() => {
     stopScanner(true); 
-    videoEl.style.display = 'none'; // ▼▼▼ PERBAIKAN: Sembunyikan video setelah berhasil scan ▼▼▼
-    startBtn.disabled = false; // Pastikan tombol Start aktif lagi
+    videoEl.style.display = 'none'; 
+    startBtn.disabled = false; 
   }, 500); 
 }
 
@@ -153,7 +158,7 @@ function stopScanner(preserveResult = false) {
 }
 
 function startScanner() {
-  // ▼▼▼ PERBAIKAN: Tampilkan video saat memulai scan ▼▼▼
+  // Tampilkan video saat memulai scan
   videoEl.style.display = 'block'; 
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';

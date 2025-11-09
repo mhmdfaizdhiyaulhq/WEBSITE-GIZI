@@ -6,12 +6,11 @@
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
 
 // --- INISIALISASI ZXing reader ---
-// PENTING: Lakukan inisialisasi di sini agar objek reader siap saat tombol diklik.
 const codeReader = new ZXing.BrowserMultiFormatReader();
 
-// --- Database produk lokal (menggabungkan data Anda) ---
+// --- Database produk lokal (mengandung info gizi) ---
 const productDatabase = {
-  // --- BARCODE PRODUK GiziPoin (Data Lama + Data Baru) ---
+  // Barcode 1
   '8992761132711': {
     name: 'Jus Apel Kemasan (250ml)',
     info: '<strong>Energi:</strong> 120 kkal | <strong>Gula:</strong> 28g | <strong>Lemak:</strong> 0g',
@@ -19,6 +18,7 @@ const productDatabase = {
     suggestion: '<strong>Saran Alternatif:</strong> Jus buah segar tanpa tambahan gula.',
     isProduct: true
   },
+  // Barcode 2
   '8996001301031': {
     name: 'Cokelat Batang (50g)',
     info: '<strong>Energi:</strong> 250 kkal | <strong>Gula:</strong> 25g | <strong>Lemak:</strong> 15g',
@@ -26,6 +26,7 @@ const productDatabase = {
     suggestion: '<strong>Saran Alternatif:</strong> Dark chocolate (>70%) atau buah-buahan.',
     isProduct: true
   },
+  // Barcode 3
   '070470478952': {
     name: 'Pocari Sweat (250g)',
     info: '<strong>Energi:</strong> 70 kkal | <strong>Gula:</strong> 17g | <strong>Protein:</strong> 0g',
@@ -33,27 +34,13 @@ const productDatabase = {
     suggestion: '<strong>Saran penyajian:</strong> Tambahkan buah segar untuk mempercepat pemulihan cairan tubuh.',
     isProduct: true
   },
-  'YOUR_BARCODE_HERE': {
-    name: 'Produk Custom Saya',
-    info: '<strong>Energi:</strong> 100 kkal | <strong>Gula:</strong> 5g | <strong>Protein:</strong> 2g',
-    warning: '✅ DATA CUSTOM ANDA',
-    suggestion: '<strong>Info:</strong> Ini adalah produk yang baru Anda tambahkan.',
-    isProduct: true
-  },
   
-  // --- QR CODE KHUSUS APLIKASI ---
+  // Barcode/QR Code Khusus Aplikasi (Tidak Dapat Poin)
   'APP_BUKA_PROFIL': {
     name: 'Aksi Aplikasi: Buka Profil',
     info: '<strong>Status:</strong> Perintah "Buka Profil" diterima.',
     warning: '✅ PERINTAH DIJALANKAN',
     suggestion: '<strong>Info:</strong> Anda akan diarahkan ke halaman profil pengguna...',
-    isProduct: false
-  },
-  'APP_LOGIN_USER_123': {
-    name: 'Aksi Aplikasi: Login',
-    info: '<strong>Status:</strong> Melakukan login untuk User 123.',
-    warning: '✅ LOGIN BERHASIL',
-    suggestion: '<strong>Info:</strong> Selamat datang kembali!',
     isProduct: false
   }
 };
@@ -73,7 +60,7 @@ if (typeof onAuthStateChanged === 'function') {
   });
 }
 
-// --- Helper: tampilkan alert singkat (dari GiziPoin) ---
+// --- Helper: tampilkan alert singkat ---
 function showScanAlert(title, message, type='success') {
   const div = document.createElement('div');
   div.className = 'alert alert-dismissible fade show scan-alert ' + (type === 'success' ? 'alert-success' : 'alert-warning');
@@ -92,18 +79,15 @@ async function addPoinForScan() {
     showScanAlert('Poin tidak ditambahkan', 'Login untuk mendapatkan poin.', 'warning');
     return;
   }
-
+  // Logika poin... (Tetap sama)
   try {
     const POIN_DAPAT = 5;
     const userDocRef = doc(db, "users", currentUser.uid);
     const userDoc = await getDoc(userDocRef);
-
     let poinSekarang = 0;
     if (userDoc.exists()) poinSekarang = userDoc.data().poin || 0;
-
     const poinBaru = poinSekarang + POIN_DAPAT;
     await setDoc(userDocRef, { poin: poinBaru }, { merge: true });
-
     showScanAlert('Poin +5', `Anda mendapat ${POIN_DAPAT} poin. Total: ${poinBaru}.`, 'success');
   } catch (err) {
     console.error('Gagal update poin:', err);
@@ -111,10 +95,12 @@ async function addPoinForScan() {
   }
 }
 
-// --- Tampilkan hasil & Proses Aksi ---
+// --- FUNGSI UTAMA: Tampilkan hasil & Proses Aksi ---
 function displayProductInfo(item, codeText) {
-  // Tampilkan detail hasil pemindaian
+  // 1. Tampilkan kode yang terdeteksi
   barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
+  
+  // 2. Tampilkan detail produk/aksi (mengisi div#product-info)
   productInfoEl.innerHTML = `
     <h4 style="text-align:center; color:#00796B; margin-top:6px;">${item.name}</h4>
     <div style="padding:12px; margin:10px auto; max-width:680px; border-radius:8px; border:1px solid #eef6ff; background:#fff;">
@@ -124,12 +110,10 @@ function displayProductInfo(item, codeText) {
     <p style="text-align:center; font-style:italic; margin-top:8px; color: #777;">${item.suggestion}</p>
   `;
 
-  // Logika Aksi Aplikasi atau Poin
+  // 3. Logika Poin
   if (item.isProduct) {
     addPoinForScan(); // Beri poin jika itu adalah produk
   } 
-  
-  // (Anda bisa menambahkan logika redirect di sini untuk 'APP_BUKA_PROFIL' jika diperlukan)
 }
 
 // --- Logika bila hasil didapat (onScanSuccess) ---
@@ -138,10 +122,12 @@ function onScanSuccess(result) {
   const item = productDatabase[codeText];
 
   if (item) {
+    // Jika kode DITEMUKAN di database
     displayProductInfo(item, codeText);
   } else {
+    // Jika kode TIDAK DITEMUKAN
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
-    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Anda bisa menambahkannya atau coba QR aplikasi.</p>`;
+    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Poin tetap diberikan.</p>`;
     // Beri poin untuk kode yang valid namun tidak terdaftar
     addPoinForScan();
   }
@@ -150,27 +136,22 @@ function onScanSuccess(result) {
   stopScanner(); 
 }
 
-// ... (Bagian atas kode, tetap sama) ...
-
-// --- Kontrol scanner ---
+// --- Kontrol scanner (dengan perbaikan error handling) ---
 function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
-  scanAlertsEl.innerHTML = ''; // Bersihkan alert lama
+  scanAlertsEl.innerHTML = '';
 
   codeReader.getVideoInputDevices()
     .then((videoInputDevices) => {
       if (videoInputDevices.length === 0) {
-        showScanAlert('Kamera Tidak Ditemukan', 'Tidak ada perangkat kamera yang terdeteksi. Cek koneksi.', 'warning');
+        showScanAlert('Kamera Tidak Ditemukan', 'Tidak ada perangkat kamera yang terdeteksi.', 'warning');
         barcodeResultEl.textContent = 'Gagal: Tidak ada kamera ditemukan.';
         return;
       }
       
-      // Menggunakan kamera pertama yang ditemukan (videoInputDevices[0].deviceId)
-      // Atau bisa menggunakan 'undefined' agar ZXing memilih default:
       const preferredDeviceId = undefined; 
       
-      // Memulai pemindaian dari perangkat video
       codeReader.decodeFromVideoDevice(preferredDeviceId, 'video-scanner', (result, err) => {
         if (result) {
           onScanSuccess(result);
@@ -179,7 +160,6 @@ function startScanner() {
           console.error("Scanner Error:", err);
           barcodeResultEl.textContent = `Error: ${err.message}`;
           
-          // Penanganan error izin kamera (penting)
           if (err.message && (err.message.toLowerCase().includes('permission') || err.message.toLowerCase().includes('notallowederror'))) {
             showScanAlert('Akses Kamera Ditolak!', 'Harap izinkan akses kamera pada browser Anda dan pastikan menggunakan HTTPS/localhost.', 'warning');
           }
@@ -199,16 +179,14 @@ function startScanner() {
 function stopScanner() {
   if (codeReader) {
     try { 
-      codeReader.reset(); // Menghentikan kamera dan proses scan
-    } catch(e){ 
-      /* abaikan error reset */ 
-    }
+      codeReader.reset();
+    } catch(e){ /* abaikan error reset */ }
   }
   barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
   productInfoEl.innerHTML = '';
 }
 
-// --- Event listeners (tetap sama) ---
+// --- Event listeners ---
 window.addEventListener('load', () => {
   startBtn.addEventListener('click', startScanner);
   stopBtn.addEventListener('click', stopScanner);

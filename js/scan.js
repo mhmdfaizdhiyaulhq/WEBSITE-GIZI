@@ -1,7 +1,7 @@
 /**
  * scan.js
  * Logika Scanner dengan ZXing dan integrasi Poin Firebase
- * Final Logic: Stop kamera setelah sukses scan, dan validasi ketat untuk poin.
+ * Final Logic: Stop kamera setelah scan berhasil (sukses/gagal), dan validasi ketat untuk poin.
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -121,19 +121,17 @@ function displayProductInfo(item, codeText) {
 
 // --- Logika bila hasil didapat (onScanSuccess) ---
 function onScanSuccess(result) {
-  
-  // ▼▼▼ ACTION 2: TUTUP KAMERA FOKUS PADA HASIL ▼▼▼
-  stopScanner(); 
-  // ▲▲▲ AKHIR ACTION 2 ▲▲▲
-
   const codeText = result.getText();
   const item = productDatabase[codeText];
 
+  // 1. Matikan kamera dan sembunyikan tampilan segera setelah sukses scan (terdaftar/tidak)
+  stopScanner(); 
+
   if (item) {
-    // KODE DITEMUKAN di database
+    // KODE DITEMUKAN di database (Tampilkan info gizi)
     displayProductInfo(item, codeText);
   } else {
-    // KODE TIDAK DITEMUKAN di database lokal (ACTION 1)
+    // KODE TIDAK DITEMUKAN di database lokal (Tampilkan pesan error)
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
     productInfoEl.innerHTML = `
         <p class="text-danger" style="text-align:center; margin-top:10px; font-weight:700;">
@@ -150,13 +148,16 @@ function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';
   productInfoEl.innerHTML = '';
   scanAlertsEl.innerHTML = '';
-  videoElement.style.display = 'block'; // Tampilkan elemen video saat mulai
+  // Tampilkan elemen video saat mulai
+  videoElement.style.display = 'block'; 
 
   codeReader.getVideoInputDevices()
     .then((videoInputDevices) => {
       if (videoInputDevices.length === 0) {
         showScanAlert('Kamera Tidak Ditemukan', 'Tidak ada perangkat kamera yang terdeteksi.', 'warning');
         barcodeResultEl.textContent = 'Gagal: Tidak ada kamera ditemukan.';
+        // Sembunyikan video jika gagal
+        videoElement.style.display = 'none';
         return;
       }
       
@@ -172,6 +173,7 @@ function startScanner() {
           
           if (err.message && (err.message.toLowerCase().includes('permission') || err.message.toLowerCase().includes('notallowederror'))) {
             showScanAlert('Akses Kamera Ditolak!', 'Harap izinkan akses kamera pada browser Anda dan pastikan menggunakan HTTPS/localhost.', 'warning');
+            stopScanner(); // Stop dan sembunyikan jika izin ditolak
           }
         }
       });
@@ -183,6 +185,7 @@ function startScanner() {
       if (err.name === 'NotAllowedError') {
          showScanAlert('Izin Kamera Ditolak!', 'Harap izinkan akses kamera pada browser Anda dan pastikan menggunakan HTTPS/localhost.', 'warning');
       }
+      stopScanner();
     });
 }
 
@@ -195,7 +198,7 @@ function stopScanner() {
   // Sembunyikan elemen video setelah di-reset
   videoElement.style.display = 'none'; 
   barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
-  // JANGAN bersihkan productInfoEl di sini, karena ini dipanggil SETELAH sukses scan
+  // JANGAN bersihkan productInfoEl agar hasil scan tetap terlihat
 }
 
 // --- Event listeners ---

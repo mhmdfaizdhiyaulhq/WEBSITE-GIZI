@@ -96,6 +96,7 @@ async function addPoinForScan() {
 }
 
 // --- FUNGSI UTAMA: Tampilkan hasil & Proses Aksi ---
+// --- FUNGSI UTAMA: Tampilkan hasil & Proses Aksi ---
 function displayProductInfo(item, codeText) {
   // 1. Tampilkan kode yang terdeteksi
   barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
@@ -111,9 +112,12 @@ function displayProductInfo(item, codeText) {
   `;
 
   // 3. Logika Poin
-  if (item.isProduct) {
-    addPoinForScan(); // Beri poin jika itu adalah produk
-  } 
+  // BARU: Hanya panggil addPoinForScan jika item.isProduct secara eksplisit TRUE
+  if (item.isProduct === true) {
+    addPoinForScan(); // Beri poin hanya jika itu adalah produk
+  } else {
+      showScanAlert('Aksi Aplikasi', 'Kode ini adalah perintah aplikasi, bukan produk. Poin tidak diberikan.', 'warning');
+  }
 }
 
 // --- Logika bila hasil didapat (onScanSuccess) ---

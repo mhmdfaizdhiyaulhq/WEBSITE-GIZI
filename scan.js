@@ -1,107 +1,57 @@
 // Import "alat" yang kita perlukan dari Firebase
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
 
-// Variabel scanner kita letakkan di scope atas agar bisa diakses
-let html5QrcodeScanner;
-
-// --- (Fungsi-fungsi helper) ---
-
-// Fungsi yang dipanggil saat scan berhasil
-function onScanSuccess(decodedText, decodedResult) {
-  // Hentikan scanner
-  if (html5QrcodeScanner) {
-    // Panggil .clear() di dalam try...catch untuk menghindari error jika scanner sudah hilang
-    try {
-      html5QrcodeScanner.clear();
-    } catch (e) {
-      console.warn("Gagal membersihkan scanner, mungkin sudah dibersihkan.", e);
-    }
+// --- (Database Produk & Aksi Cerdas - Diambil dari contoh Anda) ---
+const productDatabase = {
+  // --- BARCODE PRODUK ---
+  '8992761132711': { // Jus Apel kemasan
+    name: 'Jus Apel Kemasan (250ml)',
+    info: '<strong>Energi:</strong> 120 kkal | <strong>Gula:</strong> 28g | <strong>Lemak:</strong> 0g',
+    warning: '⚠️ TINGGI GULA!',
+    suggestion: '<strong>Saran Alternatif:</strong> Jus buah segar tanpa tambahan gula.',
+    isProduct: true
+  },
+  '8996001301031': { // Cokelat Batang
+    name: 'Cokelat Batang (50g)',
+    info: '<strong>Energi:</strong> 250 kkal | <strong>Gula:</strong> 25g | <strong>Lemak:</strong> 15g',
+    warning: '⚠️ TINGGI GULA & LEMAK!',
+    suggestion: '<strong>Saran Alternatif:</strong> Dark chocolate (>70%) atau buah-buahan.',
+    isProduct: true
+  },
+  '070470478952': { // Pocari Sweat
+    name: 'Pocari Sweat (250g)',
+    info: '<strong>Energi:</strong> 70 kkal | <strong>Gula:</strong> 17g | <strong>Protein:</strong> 0g',
+    warning: '✅ PILIHAN BAIK!',
+    suggestion: '<strong>Saran penyajian:</strong> Tambahkan buah segar untuk mempercepat pemulihan cairan tubuh.',
+    isProduct: true
+  },
+  // --- QR CODE KHUSUS APLIKASI ---
+  'APP_BUKA_PROFIL': {
+    name: 'Aksi Aplikasi: Buka Profil',
+    info: '<strong>Status:</strong> Perintah "Buka Profil" diterima.',
+    warning: '✅ PERINTAH DIJALANKAN',
+    suggestion: '<strong>Info:</strong> Anda akan diarahkan ke halaman profil pengguna...',
+    isProduct: false
+  },
+  'APP_LOGIN_USER_123': {
+    name: 'Aksi Aplikasi: Login',
+    info: '<strong>Status:</strong> Melakukan login untuk User 123.',
+    warning: '✅ LOGIN BERHASIL',
+    suggestion: '<strong>Info:</strong> Selamat datang kembali!',
+    isProduct: false
   }
-  // Cari info gizi
-  cariInfoGizi(decodedText);
-}
+};
 
-// Helper function untuk membuat 1 baris fakta gizi
-function createNutriItem(name, value, unit = 'g') {
-  if (!value || parseFloat(value) === 0) {
-    return ''; 
-  }
-  return `
-    <li class="list-group-item nutrition-item">
-      <span><i class="bi bi-dot"></i> ${name}</span>
-      <span class="nutrition-value">${value} ${unit}</span>
-    </li>
-  `;
-}
+// --- (Variabel Global ZXing & Elemen) ---
+let codeReader = null; 
+const hasilElement = document.getElementById('scan-results');
+const barcodeResultEl = document.getElementById('barcode-result');
+const productInfoEl = document.getElementById('product-info');
+const startBtn = document.getElementById('start-scan-btn');
+const stopBtn = document.getElementById('stop-scan-btn');
 
-// Fungsi untuk memanggil API dan menampilkan hasil
-async function cariInfoGizi(barcode) {
-  const hasilElement = document.getElementById('scan-results');
-  
-  hasilElement.innerHTML = `
-    <div class="text-center">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Loading...</span>
-      </div>
-      <p class="mt-2">Mencari data untuk ${barcode}...</p>
-    </div>
-  `;
-
-  try {
-    const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`);
-    const data = await response.json();
-
-    if (data.status === 1) {
-      const product = data.product;
-      const gizi = product.nutriments;
-      const imageUrl = product.image_front_small_url || 'https://via.placeholder.com/80x80.png?text=No+Image';
-
-      hasilElement.innerHTML = `
-        <div class="card nutrition-card">
-          <div class="card-header nutrition-header">
-            <div class="d-flex align-items-center">
-              <img src="${imageUrl}" alt="${product.product_name}" class="me-3">
-              <h5>${product.product_name || 'Nama Produk Tidak Dikenal'}</h5>
-            </div>
-          </div>
-          <div class="card-body">
-            <h6 class="mb-3">Informasi Gizi (per 100g)</h6>
-            <ul class="list-group list-group-flush nutrition-facts">
-              ${createNutriItem('Kalori', gizi['energy-kcal_100g'], 'kcal')}
-              ${createNutriItem('Lemak', gizi.fat_100g, 'g')}
-              ${createNutriItem('Karbohidrat', gizi.carbohydrates_100g, 'g')}
-              ${createNutriItem('Gula', gizi.sugars_100g, 'g')} 
-              ${createNutriItem('Protein', gizi.proteins_100g, 'g')}
-              ${createNutriItem('Garam', gizi.salt_100g, 'g')}
-            </ul>
-          </div>
-        </div>
-      `;
-      
-      // Panggil fungsi untuk menambahkan poin
-      addPoinForScan();
-
-    } else {
-      hasilElement.innerHTML = `
-        <div class="alert alert-warning" role="alert">
-          <h4 class="alert-heading">Produk Tidak Ditemukan</h4>
-          <p>Maaf, produk dengan barcode <strong>${barcode}</strong> tidak ada di database kami.</p>
-        </div>
-      `;
-    }
-  } catch (error) {
-    console.error("Error fetching data:", error);
-    hasilElement.innerHTML = `
-      <div class="alert alert-danger" role="alert">
-        <strong>Oops!</strong> Terjadi kesalahan saat mengambil data. Silakan coba lagi.
-      </div>
-    `;
-  }
-}
-
-// --- (Fungsi-fungsi untuk poin) ---
+// --- (Fungsi-fungsi Helper Poin - Dipertahankan dari file lama) ---
 let currentUser = null; 
-
 onAuthStateChanged(auth, (user) => {
   if (user) {
     currentUser = user; 
@@ -112,7 +62,7 @@ onAuthStateChanged(auth, (user) => {
 
 async function addPoinForScan() {
   if (!currentUser) {
-    console.log("Pengguna tidak login, tidak ada poin ditambahkan.");
+    showScanAlert('Gagal Tambah Poin', 'Login untuk mendapatkan Poin!', 'alert-warning');
     return;
   }
   
@@ -127,52 +77,114 @@ async function addPoinForScan() {
       
       await setDoc(userDocRef, { poin: poinBaru }, { merge: true });
 
-      showScanAlert(`+${POIN_DAPAT} Poin!`, `Anda berhasil scan produk dan mendapat ${POIN_DAPAT} poin.`);
+      showScanAlert(`+${POIN_DAPAT} Poin!`, `Anda berhasil scan dan mendapat ${POIN_DAPAT} poin.`, 'alert-success');
     }
   } catch (error) {
     console.error("Error menambah poin untuk scan:", error);
   }
 }
 
-function showScanAlert(title, message) {
-  const hasilElement = document.getElementById('scan-results');
+function showScanAlert(title, message, className) {
+  // Membersihkan alert lama
+  const oldAlert = document.querySelector('.scan-alert-temp');
+  if (oldAlert) oldAlert.remove();
   
   const alertHTML = `
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
+    <div class="alert ${className} alert-dismissible fade show scan-alert-temp" role="alert" style="max-width: 500px; margin: 10px auto;">
       <strong>${title}</strong> ${message}
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
   `;
   
-  hasilElement.insertAdjacentHTML('afterbegin', alertHTML);
+  hasilElement.insertAdjacentHTML('beforebegin', alertHTML);
 }
 
+// --- (Fungsi Baru: Tampilkan Hasil) ---
+function displayResultInfo(codeText, item) {
+    
+    // Tampilkan Kode yang Terdeteksi
+    barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
+    
+    productInfoEl.innerHTML = `
+        <h4 class="text-center mt-3" style="color: #00796B;">${item.name}</h4>
+        <div class="my-3 p-3 border rounded text-center">
+            ${item.info}
+        </div>
+        <p class="text-center lead" style="font-weight: 700; color: ${item.warning.includes('TINGGI') ? '#d9534f' : '#00796B'};">${item.warning}</p>
+        <p class="text-center mt-2" style="font-style:italic; font-size: 0.9rem;">${item.suggestion}</p>
+    `;
 
-// ▼▼▼ INI ADALAH PERBAIKANNYA ▼▼▼
+    // Jika kode yang terdeteksi adalah produk, tambahkan poin
+    if (item.isProduct) {
+        addPoinForScan();
+    }
+    
+    // Hentikan scanner agar hasil tetap terlihat
+    stopScanner(); 
+}
 
-// Kita buat fungsi untuk menyalakan scanner
+// --- (Fungsi Utama: Logic Scan) ---
+function onScanSuccess(result) {
+    const codeText = result.getText();
+    const item = productDatabase[codeText];
+
+    if (item) {
+        // Kode Cerdas: Dikenal, tampilkan info
+        displayResultInfo(codeText, item);
+    } else {
+        // Kode tidak dikenal
+        barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
+        productInfoEl.innerHTML = `<p class="text-center mt-3">Kode ini (${codeText}) tidak dikenali di database kami. ${codeText.length > 13 ? 'Mungkin ini QR Code/data yang belum terdaftar.' : 'Mencari data produk umum...'}</p>`;
+        
+        // Pilihan: Jika tidak ditemukan di database lokal, Anda bisa fallback ke API OpenFoodFacts (seperti di kode lama Anda) di sini.
+        // Untuk saat ini, kita anggap hanya database lokal yang digunakan.
+        
+        // Tetap berikan poin untuk scan (walau produk tidak dikenal), agar pengguna tetap mendapat reward.
+        addPoinForScan();
+        stopScanner();
+    }
+}
+
+// --- (Kontrol Scanner) ---
 function startScanner() {
-  // Cek apakah library 'Html5QrcodeScanner' sudah dimuat oleh browser
-  if (typeof window.Html5QrcodeScanner !== 'undefined') { 
+    barcodeResultEl.textContent = 'Mencari perangkat kamera...';
+    productInfoEl.innerHTML = '';
     
-    html5QrcodeScanner = new window.Html5QrcodeScanner(
-      "reader", 
-      { 
-        fps: 10, 
-        qrbox: 250 
-      }
-    );
-    html5QrcodeScanner.render(onScanSuccess);
+    if (!codeReader) {
+        // Inisialisasi hanya sekali
+        codeReader = new ZXing.BrowserMultiFormatReader();
+    }
     
-  } else {
-    // Ini terjadi jika script library gagal dimuat
-    console.error("Html5QrcodeScanner library is not loaded!");
-    alert("Error: Gagal memuat library scanner. Coba refresh halaman.");
-  }
+    // Mulai pemindaian
+    codeReader.decodeFromVideoDevice(undefined, 'video-scanner', (result, err) => {
+        if (result) {
+            onScanSuccess(result);
+        }
+        
+        // Perbaiki tampilan jika error (selain NotFoundException)
+        if (err && !(err instanceof ZXing.NotFoundException)) {
+            console.error(err);
+            barcodeResultEl.textContent = `Error: ${err.message}. ${err.message.includes('permission') ? 'Cek izin kamera browser!' : ''}`;
+        }
+    });
+
+    barcodeResultEl.textContent = 'Arahkan barcode atau QR Code ke kamera...';
 }
 
-// Ganti 'DOMContentLoaded' menjadi 'load'
-// 'load' akan menunggu SEMUA file (termasuk script eksternal) selesai dimuat
+function stopScanner() {
+    if (codeReader) {
+        codeReader.reset(); // Menghentikan kamera dan proses scan
+    }
+    barcodeResultEl.textContent = 'Status: Kamera tidak aktif.';
+    productInfoEl.innerHTML = ''; // Membersihkan hasil
+}
+
+// --- (Event Listeners) ---
 window.addEventListener("load", () => {
-  startScanner();
+    // Tambahkan event untuk tombol Start dan Stop
+    startBtn.addEventListener('click', startScanner);
+    stopBtn.addEventListener('click', stopScanner);
+
+    // Otomatis mulai scan saat halaman dimuat (opsional, tapi disarankan)
+    // startScanner();
 });

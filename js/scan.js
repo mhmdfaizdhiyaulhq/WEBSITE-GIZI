@@ -1,5 +1,5 @@
 /**
- * scan.js (Final: Anti-Spam Poin, Animasi Garis Scan & Stabilitas Kode)
+ * scan.js (Final: Animasi Garis Scan & Manajemen Tampilan)
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -53,9 +53,9 @@ const barcodeResultEl = document.getElementById('barcode-result');
 const productInfoEl = document.getElementById('product-info');
 const scanAlertsEl = document.getElementById('scan-alerts');
 const videoEl = document.getElementById('video-scanner'); 
-const scannerLineEl = document.getElementById('scanner-line'); 
+const scannerLineEl = document.getElementById('scanner-line'); // Ambil elemen garis animasi
 
-// --- Auth state ---
+// --- Auth state (dihilangkan untuk brevity) ---
 let currentUser = null;
 if (typeof onAuthStateChanged === 'function') {
   onAuthStateChanged(auth, (user) => {
@@ -63,7 +63,7 @@ if (typeof onAuthStateChanged === 'function') {
   });
 }
 
-// --- Helper: tampilkan alert singkat ---
+// --- Helper: tampilkan alert singkat (dihilangkan untuk brevity) ---
 function showScanAlert(title, message, type='success') {
   const div = document.createElement('div');
   div.className = 'alert alert-dismissible fade show scan-alert ' + (type === 'success' ? 'alert-success' : 'alert-warning');
@@ -76,67 +76,29 @@ function showScanAlert(title, message, type='success') {
   }, 3500);
 }
 
-// --- FUNGSI BARU: Menambah poin ke Firestore dengan cek 24 jam ---
-async function addPoinForScan(codeText) { 
+// --- Menambah poin ke Firestore (dihilangkan untuk brevity) ---
+async function addPoinForScan() {
   if (!currentUser || !auth) {
     showScanAlert('Poin tidak ditambahkan', 'Login untuk mendapatkan poin.', 'warning');
     return;
   }
-
+  // Logika penambahan poin yang sudah ada
   try {
     const POIN_DAPAT = 5;
-    const DUA_PULUH_EMPAT_JAM = 24 * 60 * 60 * 1000;
-    const SEKARANG = Date.now();
-
     const userDocRef = doc(db, "users", currentUser.uid);
     const userDoc = await getDoc(userDocRef);
-
     let poinSekarang = 0;
-    // Struktur: [{code: '123', time: 167888...}, ...]
-    let barcodeKlaimTerakhir = userDoc.exists() ? userDoc.data().barcodeKlaimTerakhir || [] : [];
-    
-    if (userDoc.exists()) {
-      poinSekarang = userDoc.data().poin || 0;
-    }
-
-    // 1. Bersihkan daftar: Hapus entri yang sudah kadaluarsa (lebih dari 24 jam)
-    const daftarBersih = barcodeKlaimTerakhir.filter(entry => {
-      return (SEKARANG - entry.time) < DUA_PULUH_EMPAT_JAM;
-    });
-
-    // 2. Cek apakah kode ini sudah ada di daftar bersih
-    const kodeSudahDiklaim = daftarBersih.some(entry => entry.code === codeText);
-
-    if (kodeSudahDiklaim) {
-      // Kode sudah pernah diklaim dalam 24 jam
-      showScanAlert('Klaim Gagal', 'Barcode ini sudah Anda scan dalam 24 jam terakhir. Coba produk baru!', 'warning');
-      return; 
-    }
-
-    // --- BARCODE BARU: Proses Klaim Poin ---
+    if (userDoc.exists()) poinSekarang = userDoc.data().poin || 0;
     const poinBaru = poinSekarang + POIN_DAPAT;
-    
-    // 3. Tambahkan kode baru ke daftar
-    daftarBersih.push({
-      code: codeText,
-      time: SEKARANG
-    });
-
-    // 4. Simpan poin baru dan daftar barcode baru ke Firestore
-    await setDoc(userDocRef, { 
-      poin: poinBaru,
-      barcodeKlaimTerakhir: daftarBersih // Simpan daftar yang sudah diperbarui
-    }, { merge: true });
-
+    await setDoc(userDocRef, { poin: poinBaru }, { merge: true });
     showScanAlert('Poin +5', `Anda mendapat ${POIN_DAPAT} poin. Total: ${poinBaru}.`, 'success');
-
   } catch (err) {
     console.error('Gagal update poin:', err);
     showScanAlert('Error', 'Gagal menambahkan poin (cek console).', 'warning');
   }
 }
 
-// --- Tampilkan hasil ---
+// --- Tampilkan hasil (dihilangkan untuk brevity) ---
 function displayProductInfo(item, codeText) {
   barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
   productInfoEl.innerHTML = `
@@ -147,8 +109,9 @@ function displayProductInfo(item, codeText) {
     <p class="${item.warning.includes('TINGGI') ? 'text-danger' : 'text-success'}" style="font-weight:800; text-align:center;">${item.warning}</p>
     <p style="text-align:center; font-style:italic; margin-top:8px; color: #777;">${item.suggestion}</p>
   `;
-
-  // Tidak perlu memanggil addPoinForScan di sini, karena sudah dipanggil di onScanSuccess
+  if (item.isProduct) {
+    addPoinForScan();
+  }
 }
 
 // --- Logika bila hasil didapat ---
@@ -162,21 +125,17 @@ function onScanSuccess(result) {
   if (item) {
     displayProductInfo(item, codeText);
   } else {
-    // KODE DEBUGGING: (Bisa dihapus jika sudah tidak diperlukan)
+    // Tampilan Debugging Lanjutan jika kode tidak ditemukan
     const codeArray = Array.from(codeText).map(c => c.charCodeAt(0));
     console.error(`KODE TIDAK COCOK. Kode yang Terdeteksi: "${codeText}"`);
     console.error(`Representasi Karakter (ASCII/Unicode):`, codeArray);
     
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
     productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal.</p>`;
+    addPoinForScan();
   }
 
-  // Hanya tambahkan poin jika ini adalah produk (isProduct: true) atau kode tidak dikenal (item: undefined)
-  if (item && item.isProduct || !item) {
-      addPoinForScan(codeText); 
-  }
-
-  // Tunda pemanggilan stopScanner untuk memastikan hasil terlihat
+  // Menggunakan Timeout untuk memastikan hasil ditampilkan sebelum video ditutup
   setTimeout(() => {
     stopScanner(true); 
     videoEl.style.display = 'none'; 
@@ -190,7 +149,7 @@ function stopScanner(preserveResult = false) {
     try { codeReader.reset(); } catch(e){ /* ignore */ }
   }
   
-  // Hentikan animasi garis scan
+  // ▼▼▼ Animasi: Hentikan animasi garis scan ▼▼▼
   scannerLineEl.style.display = 'none'; 
   scannerLineEl.style.animation = 'none';
 
@@ -209,7 +168,7 @@ function startScanner() {
   productInfoEl.innerHTML = '';
   startBtn.disabled = true; 
 
-  // Mulai animasi garis scan
+  // ▼▼▼ Animasi: Mulai animasi garis scan ▼▼▼
   scannerLineEl.style.display = 'block';
   scannerLineEl.style.animation = 'scan-down-up 3s infinite alternate'; 
 

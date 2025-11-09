@@ -1,6 +1,7 @@
 /**
  * scan.js
  * Logika Scanner dengan ZXing dan integrasi Poin Firebase
+ * FIX: Memastikan poin HANYA diberikan jika kode ditemukan di productDatabase DAN isProduct: true.
  */
 
 import { auth, db, onAuthStateChanged, doc, getDoc, setDoc } from './firebase.js';
@@ -34,14 +35,13 @@ const productDatabase = {
     suggestion: '<strong>Saran penyajian:</strong> Tambahkan buah segar untuk mempercepat pemulihan cairan tubuh.',
     isProduct: true
   },
-  
-  // Barcode/QR Code Khusus Aplikasi (Tidak Dapat Poin)
+  // QR Code Khusus Aplikasi (Tidak Dapat Poin)
   'APP_BUKA_PROFIL': {
     name: 'Aksi Aplikasi: Buka Profil',
     info: '<strong>Status:</strong> Perintah "Buka Profil" diterima.',
     warning: '✅ PERINTAH DIJALANKAN',
     suggestion: '<strong>Info:</strong> Anda akan diarahkan ke halaman profil pengguna...',
-    isProduct: false
+    isProduct: false // TIDAK BOLEH DAPAT POIN
   }
 };
 
@@ -79,7 +79,7 @@ async function addPoinForScan() {
     showScanAlert('Poin tidak ditambahkan', 'Login untuk mendapatkan poin.', 'warning');
     return;
   }
-  // Logika poin... (Tetap sama)
+  
   try {
     const POIN_DAPAT = 5;
     const userDocRef = doc(db, "users", currentUser.uid);
@@ -96,12 +96,11 @@ async function addPoinForScan() {
 }
 
 // --- FUNGSI UTAMA: Tampilkan hasil & Proses Aksi ---
-// --- FUNGSI UTAMA: Tampilkan hasil & Proses Aksi ---
 function displayProductInfo(item, codeText) {
   // 1. Tampilkan kode yang terdeteksi
   barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
   
-  // 2. Tampilkan detail produk/aksi (mengisi div#product-info)
+  // 2. Tampilkan detail produk/aksi
   productInfoEl.innerHTML = `
     <h4 style="text-align:center; color:#00796B; margin-top:6px;">${item.name}</h4>
     <div style="padding:12px; margin:10px auto; max-width:680px; border-radius:8px; border:1px solid #eef6ff; background:#fff;">
@@ -112,11 +111,12 @@ function displayProductInfo(item, codeText) {
   `;
 
   // 3. Logika Poin
-  // BARU: Hanya panggil addPoinForScan jika item.isProduct secara eksplisit TRUE
+  // KETAT: Poin hanya diberikan jika isProduct adalah TRUE
   if (item.isProduct === true) {
-    addPoinForScan(); // Beri poin hanya jika itu adalah produk
+    addPoinForScan(); 
   } else {
-      showScanAlert('Aksi Aplikasi', 'Kode ini adalah perintah aplikasi, bukan produk. Poin tidak diberikan.', 'warning');
+    // Pesan jika terdaftar tapi BUKAN produk (misal QR Aksi Aplikasi)
+    showScanAlert('Aksi Aplikasi Dikenali', 'Kode ini adalah perintah, bukan produk. Poin tidak diberikan.', 'warning');
   }
 }
 
@@ -127,19 +127,23 @@ function onScanSuccess(result) {
 
   if (item) {
     // KODE DITEMUKAN di database
-    // displayProductInfo akan memanggil addPoinForScan() jika isProduct: true
     displayProductInfo(item, codeText);
-    
   } else {
     // KODE TIDAK DITEMUKAN di database lokal
     barcodeResultEl.textContent = `Kode Terdeteksi: ${codeText}`;
-    productInfoEl.innerHTML = `<p style="text-align:center; margin-top:6px;">Kode (${codeText}) tidak ada di database lokal. Poin **TIDAK** diberikan.</p>`;
-    // PENTING: JANGAN panggil addPoinForScan() di sini!
-    
-    // Hentikan scanner agar hasil tetap terlihat
-    stopScanner(); 
+    productInfoEl.innerHTML = `
+        <p style="text-align:center; margin-top:6px;">
+            Kode **${codeText}** tidak terdaftar di database GiziPoin.
+            <br>
+            **Poin TIDAK diberikan.**
+        </p>`;
+    // PENTING: Poin TIDAK diberikan di sini.
   }
+
+  // Hentikan scanner agar hasil tetap terlihat
+  stopScanner(); 
 }
+
 // --- Kontrol scanner (dengan perbaikan error handling) ---
 function startScanner() {
   barcodeResultEl.textContent = 'Mencari perangkat kamera...';

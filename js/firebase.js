@@ -6,7 +6,7 @@ import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/fireb
 
 // ▼▼▼ PASTIKAN INI ADALAH KONFIGURASI FIREBASE ASLI ANDA ▼▼▼
 const firebaseConfig = {
-  apiKey: "AIzaSyD0UenQNNxv9YphNHU8QC2JKoD7nD4igv0", // (Kunci asli Anda)
+  apiKey: "AIzaSyD0UenQNNxv9YphNHU8QC2JKoD7nD4igv0", // (Kunci asli Anda - GANTI INI!)
   authDomain: "gizi-poin.firebaseapp.com",
   projectId: "gizi-poin",
   storageBucket: "gizi-poin.firebasestorage.app",
